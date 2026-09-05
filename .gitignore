@@ -1,0 +1,9 @@
+/*
+
+!/.gitignore
+!/.gitmodules
+!/linux
+!/lk2nd
+!/scripts/
+!/pmbootstrap_cli.cfg
+!/pmbootstrap_phosh.cfg

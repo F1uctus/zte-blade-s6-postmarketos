@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+# OpenRC service: toggle the buffyboard on-screen keyboard from the Home button.
+name="buffyboard-home-toggle"
+description="Toggle buffyboard on the Home capacitive button"
+command="/usr/local/bin/buffyboard-home-daemon"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+
+depend() {
+	after local modules
+}
