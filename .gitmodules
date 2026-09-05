@@ -1,0 +1,8 @@
+[submodule "linux"]
+	path = linux
+	url = https://github.com/F1uctus/linux
+	branch = msm8916/7.2-rc1
+[submodule "lk2nd"]
+	path = lk2nd
+	url = https://github.com/F1uctus/lk2nd
+	branch = zte-blade-s6
