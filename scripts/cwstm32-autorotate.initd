@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+# OpenRC service: console auto-rotation from the cwstm32 accelerometer.
+name="cwstm32-autorotate"
+description="Rotate the fbcon console from the cwstm32 accelerometer"
+command="/usr/local/bin/cwstm32-autorotate"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+
+depend() {
+	after local modules
+}
