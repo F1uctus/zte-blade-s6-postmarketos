@@ -6,3 +6,7 @@
 	path = lk2nd
 	url = https://github.com/F1uctus/lk2nd
 	branch = zte-blade-s6
+[submodule "pmaports"]
+	path = pmaports
+	url = https://github.com/F1uctus/pmaports
+	branch = zte-blade-s6

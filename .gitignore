@@ -4,6 +4,7 @@
 !/.gitmodules
 !/linux
 !/lk2nd
+!/pmaports
 !/scripts/
 !/pmbootstrap_v3.cfg
 !/pmbootstrap_phosh.cfg
