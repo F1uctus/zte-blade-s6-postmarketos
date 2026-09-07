@@ -6,6 +6,7 @@
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CFG="${REPO_ROOT}/pmbootstrap_v3.cfg"
+PMB=(pmbootstrap -c "$CFG" -p "$REPO_ROOT/pmaports")
 PKGDIR="${REPO_ROOT}/pmaports/device/testing/device-zte-p839f30"
 APKBUILD="${PKGDIR}/APKBUILD"
 
@@ -15,17 +16,17 @@ echo "Bumping pkgrel ${cur} -> ${next}"
 sed -i "s/^pkgrel=${cur}/pkgrel=${next}/" "$APKBUILD"
 
 echo "Regenerating checksums (deviceinfo, initfs hooks, etc.)..."
-pmbootstrap -c "$CFG" checksum device-zte-p839f30
+"${PMB[@]}" checksum device-zte-p839f30
 
 echo "Force-building device-zte-p839f30..."
-pmbootstrap -c "$CFG" build --force device-zte-p839f30
+"${PMB[@]}" build --force device-zte-p839f30
 
 echo "Installing device pkg into rootfs chroot (no UUID change)..."
-pmbootstrap -c "$CFG" chroot -r -- apk add -u device-zte-p839f30 device-zte-p839f30-nonfree-firmware
+"${PMB[@]}" chroot -r -- apk add -u device-zte-p839f30 device-zte-p839f30-nonfree-firmware
 
 echo "Regenerating boot.img (initfs build + export)..."
-pmbootstrap -c "$CFG" initfs build
-pmbootstrap -c "$CFG" export /tmp/postmarketOS-export
+"${PMB[@]}" initfs build
+"${PMB[@]}" export /tmp/postmarketOS-export
 
 echo "Done. boot.img at /tmp/postmarketOS-export/boot.img — flash BOOT ONLY via TWRP:"
 echo "  ADB_SERIAL=ec74ca69 ./scripts/flash-boot-via-adb.sh /tmp/postmarketOS-export/boot.img"

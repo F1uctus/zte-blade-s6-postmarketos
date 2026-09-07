@@ -27,7 +27,7 @@ VARIANT_DIR="${VARIANT_DIR:-/var/tmp/pmos-variants}"
 OUT="$VARIANT_DIR/$VARIANT"
 EXPORT_DIR="/tmp/postmarketOS-export-$VARIANT"
 export PMB_USER_PASSWORD="${PMB_USER_PASSWORD:-pmos}"
-PMB=(pmbootstrap -y -c "$CFG")
+PMB=(pmbootstrap -y -c "$CFG" -p "$REPO_ROOT/pmaports")
 
 # Both configs share chroot_rootfs_zte-p839f30, so --zap keeps one variant's
 # rootfs out of the other. --no-recommends holds each to what it needs.
