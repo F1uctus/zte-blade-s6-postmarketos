@@ -163,3 +163,13 @@ t_staging_dir() {
 		*) echo "Error: $TRANSPORT has no staging area." >&2; return 1 ;;
 	esac
 }
+
+# Create it. Commands run as root but files arrive as the login user, so on a
+# running system the directory has to belong to that user.
+t_prepare_staging() {
+	local dir; dir=$(t_staging_dir) || return 1
+	case "$TRANSPORT" in
+		twrp) t_run "mkdir -p '$dir'" >/dev/null ;;
+		pmos) t_run "mkdir -p '$dir' && chown $PMOS_USER '$dir'" >/dev/null ;;
+	esac
+}
