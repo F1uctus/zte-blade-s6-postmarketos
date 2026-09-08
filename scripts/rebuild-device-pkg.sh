@@ -29,4 +29,4 @@ echo "Regenerating boot.img (initfs build + export)..."
 "${PMB[@]}" export /tmp/postmarketOS-export
 
 echo "Done. boot.img at /tmp/postmarketOS-export/boot.img — flash BOOT ONLY via TWRP:"
-echo "  ADB_SERIAL=ec74ca69 ./scripts/flash-boot-via-adb.sh /tmp/postmarketOS-export/boot.img"
+echo "  ./scripts/flash-partition.sh --target boot --offset-kb 512 --verify /tmp/postmarketOS-export/boot.img"

@@ -4,8 +4,8 @@
 #   cli   -> minimal console, rootfs lives on the `system` partition
 #   phosh -> Phosh GUI, rootfs lives on `userdata`
 #
-# Usage: ./build-variant.sh cli|phosh [--flash-rootfs]
-# Env:   ADB_SERIAL=ec74ca69  VARIANT_DIR=/var/tmp/pmos-variants  PMB_USER_PASSWORD=pmos
+# Usage: ./build-variant.sh cli|phosh [--flash-rootfs] [--dry-run]
+# Env:   ADB_SERIAL  VARIANT_DIR=/var/tmp/pmos-variants  PMB_USER_PASSWORD=pmos
 #
 # --flash-rootfs writes the rootfs to that variant's partition (device in TWRP).
 # Without it, only the images are built and stashed; switch-variant.sh then
@@ -13,9 +13,16 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-VARIANT="${1:?Usage: $0 cli|phosh [--flash-rootfs]}"
+VARIANT="${1:?Usage: $0 cli|phosh [--flash-rootfs] [--dry-run]}"
 FLASH_ROOTFS=0
-[[ "${2:-}" == "--flash-rootfs" ]] && FLASH_ROOTFS=1
+DRY_RUN=0
+for option in "${@:2}"; do
+	case "$option" in
+		--flash-rootfs) FLASH_ROOTFS=1 ;;
+		--dry-run) DRY_RUN=1 ;;
+		*) echo "Error: unknown option: $option" >&2; exit 1 ;;
+	esac
+done
 
 case "$VARIANT" in
 	cli)   CFG="$REPO_ROOT/pmbootstrap_cli.cfg";    TARGET_PART="system" ;;
@@ -26,6 +33,23 @@ esac
 VARIANT_DIR="${VARIANT_DIR:-/var/tmp/pmos-variants}"
 OUT="$VARIANT_DIR/$VARIANT"
 EXPORT_DIR="/tmp/postmarketOS-export-$VARIANT"
+if (( DRY_RUN )); then
+	cat <<EOF
+Build variant
+  source : $CFG
+  output : $OUT/boot.img, $OUT/rootfs.img
+EOF
+	if (( FLASH_ROOTFS )); then
+		cat <<EOF
+Flash rootfs
+  source : $OUT/rootfs.img
+  target : $TARGET_PART at 0 KiB
+  writes : $VARIANT rootfs image
+  checks : written-extent md5
+EOF
+	fi
+	exit 0
+fi
 export PMB_USER_PASSWORD="${PMB_USER_PASSWORD:-pmos}"
 PMB=(pmbootstrap -y -c "$CFG" -p "$REPO_ROOT/pmaports")
 
@@ -48,8 +72,7 @@ echo "Stashed $ROOTFS_IMG -> partition '$TARGET_PART'"
 
 if [[ "$FLASH_ROOTFS" = "1" ]]; then
 	echo "=== Flashing rootfs to '$TARGET_PART' (device must be in TWRP) ==="
-	USERDATA_BLOCK="$("$SCRIPT_DIR"/resolve-partition.sh "$TARGET_PART")" \
-		"$SCRIPT_DIR/flash-rootfs-via-adb.sh" --verify "$ROOTFS_IMG"
+	"$SCRIPT_DIR/flash-partition.sh" --target "$TARGET_PART" --verify "$ROOTFS_IMG"
 fi
 
 echo
