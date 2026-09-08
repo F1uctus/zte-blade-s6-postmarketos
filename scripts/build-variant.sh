@@ -51,7 +51,7 @@ EOF
 	exit 0
 fi
 export PMB_USER_PASSWORD="${PMB_USER_PASSWORD:-pmos}"
-PMB=(pmbootstrap -y -c "$CFG" -p "$REPO_ROOT/pmaports")
+PMB=(env "PMB_CFG=$CFG" "$SCRIPT_DIR/pmb.sh" -y)
 
 echo "=== Refreshing device package checksums ==="
 "${PMB[@]}" checksum device-zte-p839f30
