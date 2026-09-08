@@ -9,8 +9,8 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# shellcheck source=lib/adb-flash-common.sh
-source "$SCRIPT_DIR/lib/adb-flash-common.sh"
+# shellcheck source=lib/transport.sh
+source "$SCRIPT_DIR/lib/transport.sh"
 ADB="${ADB:-adb}"
 if [ -f "$1" ] && [ "${1%.bin}" != "$1" ]; then
   BIN="$1"
@@ -28,8 +28,8 @@ SPLASH_DEV="/dev/block/by-name/splash"
 WRITE_LEN=65536
 
 if [ "$SKIP_PULL" -eq 0 ]; then
-  check_adb_device
-  SPLASH_DEV=$(run_adb shell "readlink -f /dev/block/by-name/splash 2>/dev/null; \
+  transport_detect
+  SPLASH_DEV=$(t_run "readlink -f /dev/block/by-name/splash 2>/dev/null; \
     readlink -f /dev/block/platform/*/by-name/splash 2>/dev/null" | tr -d '\r' | head -1)
   if [ -z "$SPLASH_DEV" ]; then
     echo "Splash partition not found. Is device in TWRP/root?"
@@ -38,13 +38,13 @@ if [ "$SKIP_PULL" -eq 0 ]; then
   echo "Using splash device: $SPLASH_DEV (serial ${ADB_SERIAL:-auto})"
 
   echo "Reading last ${WRITE_LEN} bytes of splash partition..."
-  run_adb exec-out "size=\$(blockdev --getsize64 $SPLASH_DEV 2>/dev/null); \
+  t_readback "size=\$(blockdev --getsize64 $SPLASH_DEV 2>/dev/null); \
     [ -n \"\$size\" ] && skip=\$(( (size / $WRITE_LEN) - 1 )) && dd if=$SPLASH_DEV bs=$WRITE_LEN skip=\$skip count=1 2>/dev/null" > "$BIN" || true
 
   # Fallback: read last block of a fixed 1MiB tail (splash is usually >= 1MiB)
   if [ ! -s "$BIN" ]; then
     echo "blockdev failed, trying fixed skip (1MiB tail)..."
-    run_adb exec-out "dd if=$SPLASH_DEV bs=$WRITE_LEN skip=15 count=1 2>/dev/null" > "$BIN" || true
+    t_readback "dd if=$SPLASH_DEV bs=$WRITE_LEN skip=15 count=1 2>/dev/null" > "$BIN" || true
   fi
 
   if [ ! -s "$BIN" ]; then

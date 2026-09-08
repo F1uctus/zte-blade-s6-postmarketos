@@ -5,7 +5,7 @@
 #   phosh -> Phosh GUI, rootfs lives on `userdata`
 #
 # Usage: ./build-variant.sh cli|phosh [--flash-rootfs]
-# Env:   ADB_SERIAL=ec74ca69  VARIANT_DIR=/var/tmp/pmos-variants  PMB_USER_PASSWORD=pmos
+# Env:   ADB_SERIAL  VARIANT_DIR=/var/tmp/pmos-variants  PMB_USER_PASSWORD=pmos
 #
 # --flash-rootfs writes the rootfs to that variant's partition (device in TWRP).
 # Without it, only the images are built and stashed; switch-variant.sh then
@@ -51,8 +51,7 @@ echo "Stashed $ROOTFS_IMG -> partition '$TARGET_PART'"
 
 if [[ "$FLASH_ROOTFS" = "1" ]]; then
 	echo "=== Flashing rootfs to '$TARGET_PART' (device must be in TWRP) ==="
-	USERDATA_BLOCK="$("$SCRIPT_DIR"/resolve-partition.sh "$TARGET_PART")" \
-		"$SCRIPT_DIR/flash-rootfs-via-adb.sh" --verify "$ROOTFS_IMG"
+	"$SCRIPT_DIR/flash-partition.sh" --target "$TARGET_PART" --verify "$ROOTFS_IMG"
 fi
 
 echo

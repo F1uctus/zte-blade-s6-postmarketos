@@ -29,4 +29,4 @@ fi
 
 echo "Flashing and verifying..."
 # lk2nd goes at the start of the partition (offset 0)
-LK2ND_OFFSET_KB=0 exec "$SCRIPT_DIR/flash-boot-via-adb.sh" --verify "$LK2ND_IMG"
+exec "$SCRIPT_DIR/flash-partition.sh" --target boot --offset-kb 0 --verify "$LK2ND_IMG"
