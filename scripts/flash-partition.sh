@@ -26,6 +26,7 @@ while [[ "${1:-}" == --* ]]; do
 	shift
 done
 [[ -n "$TARGET" ]] || { echo "Error: --target is required" >&2; exit 1; }
+(( OFFSET_KB % 4 == 0 )) || { echo "Error: --offset-kb must be a multiple of 4" >&2; exit 1; }
 IMG="${1:?Usage: $0 --target <label> [--offset-kb N] [--verify] [--dry-run] <image>}"
 [[ -f "$IMG" ]] || { echo "Error: not a file: $IMG" >&2; exit 1; }
 IMG="$(readlink -f "$IMG")"
@@ -81,6 +82,7 @@ fi
 checks=""
 [[ "$VERIFY" -eq 1 ]] && checks+=" written-extent md5"
 [[ "$GZIP_CHECK" -eq 1 ]] && checks+=" kernel-gzip"
+(( OFFSET_KB > 0 )) && checks+=" head-intact"
 cat <<EOF
 Flash partition
   source : $IMG ($((RAW_SIZE / 1048576)) MiB$([[ "$IS_SPARSE" -eq 1 ]] && echo ", sparse"))
@@ -105,7 +107,16 @@ fi
 t_run "mkdir -p '$STAGING'" >/dev/null
 TOTAL_MIB=$(( (IMG_SIZE + 1048575) / 1048576 ))
 CHUNKS=$(( (TOTAL_MIB + CHUNK_MIB - 1) / CHUNK_MIB ))
-SEEK_MIB=$(( OFFSET_KB / 1024 ))
+BLK=4096
+SEEK_BLK=$(( OFFSET_KB * 1024 / BLK ))
+BLK_PER_MIB=$(( 1048576 / BLK ))
+
+# Everything before the offset belongs to someone else - lk2nd lives in the
+# first 512 KiB of boot - so hash it and refuse to finish if the write moved it.
+HEAD_BEFORE=""
+if (( SEEK_BLK > 0 )); then
+	HEAD_BEFORE=$(t_run "dd if=$NODE bs=$BLK count=$SEEK_BLK 2>/dev/null | md5sum" | tr -d '\r' | awk '{print $1}')
+fi
 
 for ((i = 0; i < CHUNKS; i++)); do
 	off=$(( i * CHUNK_MIB ))
@@ -126,14 +137,23 @@ for ((i = 0; i < CHUNKS; i++)); do
 		exit 1
 	fi
 
-	t_run "dd if='$STAGING/chunk' of='$NODE' bs=1M seek=$((SEEK_MIB + off)) conv=notrunc,fsync 2>/dev/null && rm -f '$STAGING/chunk'"
+	t_run "dd if='$STAGING/chunk' of='$NODE' bs=$BLK seek=$(( SEEK_BLK + off * BLK_PER_MIB )) conv=notrunc,fsync 2>/dev/null && rm -f '$STAGING/chunk'"
 	[[ "$CHUNKS" -gt 1 ]] && echo ok
 done
 t_run "sync"
 
+if [[ -n "$HEAD_BEFORE" ]]; then
+	head_after=$(t_run "dd if=$NODE bs=$BLK count=$SEEK_BLK 2>/dev/null | md5sum" | tr -d '\r' | awk '{print $1}')
+	if [[ "$head_after" != "$HEAD_BEFORE" ]]; then
+		echo "  head-intact: FAILED - the first ${OFFSET_KB} KiB changed" >&2
+		exit 1
+	fi
+	echo "  head-intact: ok (first ${OFFSET_KB} KiB unchanged)"
+fi
+
 # One read-back serves both checks when the image is small enough to pull.
 if [[ "$GZIP_CHECK" -eq 1 ]]; then
-	t_readback "dd if=$NODE bs=1M skip=$SEEK_MIB count=$TOTAL_MIB 2>/dev/null" \
+	t_readback "dd if=$NODE bs=$BLK skip=$SEEK_BLK count=$(( TOTAL_MIB * BLK_PER_MIB )) 2>/dev/null" \
 		| head -c "$IMG_SIZE" > "$WORK/readback"
 	if [[ "$VERIFY" -eq 1 ]]; then
 		if cmp -s "$WORK/readback" "$IMG"; then echo "  written-extent md5: ok"
@@ -154,7 +174,7 @@ PY
 	then echo "  kernel-gzip: ok"
 	else echo "  kernel-gzip: FAILED" >&2; exit 1; fi
 elif [[ "$VERIFY" -eq 1 ]]; then
-	dev=$(t_run "dd if=$NODE bs=1M skip=$SEEK_MIB count=$TOTAL_MIB 2>/dev/null | head -c $IMG_SIZE | md5sum" \
+	dev=$(t_run "dd if=$NODE bs=$BLK skip=$SEEK_BLK count=$(( TOTAL_MIB * BLK_PER_MIB )) 2>/dev/null | head -c $IMG_SIZE | md5sum" \
 		| tr -d '\r' | awk '{print $1}')
 	host=$(head -c "$IMG_SIZE" "$IMG" | md5sum | awk '{print $1}')
 	if [[ -n "$dev" && "$dev" == "$host" ]]; then echo "  written-extent md5: ok"
