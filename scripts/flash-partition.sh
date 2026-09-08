@@ -104,7 +104,7 @@ if [[ "$IS_SPARSE" -eq 1 ]]; then
 	IMG_SIZE=$(stat -c%s "$IMG")
 fi
 
-t_run "mkdir -p '$STAGING'" >/dev/null
+t_prepare_staging
 TOTAL_MIB=$(( (IMG_SIZE + 1048575) / 1048576 ))
 CHUNKS=$(( (TOTAL_MIB + CHUNK_MIB - 1) / CHUNK_MIB ))
 BLK=4096
