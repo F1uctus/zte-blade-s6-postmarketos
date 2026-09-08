@@ -7,10 +7,9 @@
 # initramfs mounts the matching rootfs.
 #
 # Usage: ./switch-variant.sh cli|phosh
-# Env:   ADB_SERIAL=ec74ca69  VARIANT_DIR=/var/tmp/pmos-variants
+# Env:   ADB_SERIAL  VARIANT_DIR=/var/tmp/pmos-variants
 #
-# Device must be in TWRP. From a running system, get there with:
-#   sudo python3 -c 'import ctypes; ctypes.CDLL(None).syscall(142, 0xfee1dead, 672274793, 0xA1B2C3D4, b"recovery")'
+# Get the device into a writable mode first: ./scripts/enter-mode.sh twrp
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VARIANT="${1:?Usage: $0 cli|phosh}"
@@ -29,6 +28,6 @@ if [[ ! -f "$BOOT_IMG" ]]; then
 fi
 
 echo "Switching to '$VARIANT' (flashing $(stat -c%s "$BOOT_IMG") bytes to boot)"
-"$SCRIPT_DIR/flash-boot-via-adb.sh" "$BOOT_IMG"
+"$SCRIPT_DIR/flash-partition.sh" --target boot --offset-kb 512 --verify "$BOOT_IMG"
 echo
 echo "Done. Reboot the device to start the '$VARIANT' variant."
