@@ -6,7 +6,7 @@
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CFG="${REPO_ROOT}/pmbootstrap_v3.cfg"
-PMB=(pmbootstrap -c "$CFG" -p "$REPO_ROOT/pmaports")
+PMB=(env "PMB_CFG=$CFG" "$REPO_ROOT/scripts/pmb.sh")
 PKGDIR="${REPO_ROOT}/pmaports/device/testing/device-zte-p839f30"
 APKBUILD="${PKGDIR}/APKBUILD"
 
