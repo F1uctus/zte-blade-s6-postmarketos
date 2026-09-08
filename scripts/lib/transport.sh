@@ -33,6 +33,19 @@ _fb() {
 
 _ssh() { ssh "${SSH_OPTS[@]}" "$PMOS_USER@$PMOS_HOST" "$@"; }
 
+# Run a command as root on a running system. The command travels base64-encoded
+# so quoting cannot break it, which leaves stdin free for the sudo password.
+_pmos_root() {
+	local enc inner
+	enc=$(printf '%s' "$1" | base64 | tr -d '\n')
+	inner="echo $enc | base64 -d | sh"
+	if [[ -n "${PMOS_SUDO_PASSWORD:-}" ]]; then
+		printf '%s\n' "$PMOS_SUDO_PASSWORD" | _ssh "sudo -S -p '' sh -c \"$inner\""
+	else
+		_ssh "sudo -n sh -c \"$inner\""
+	fi
+}
+
 # WSL: adb.exe needs a Windows path for push.
 _push_path() {
 	if [[ "$ADB" == *adb* ]] && command -v wslpath &>/dev/null; then
@@ -46,7 +59,15 @@ transport_detect() {
 		recovery) TRANSPORT=twrp; return 0 ;;
 		device)   TRANSPORT=twrp; return 0 ;;
 	esac
-	if _ssh true >/dev/null 2>&1; then TRANSPORT=pmos; return 0; fi
+	if _ssh true >/dev/null 2>&1; then
+		TRANSPORT=pmos
+		if ! _pmos_root true >/dev/null 2>&1; then
+			echo "Error: $PMOS_USER@$PMOS_HOST answers but root is not reachable." >&2
+			echo "  Set PMOS_SUDO_PASSWORD, or give the account passwordless sudo." >&2
+			return 1
+		fi
+		return 0
+	fi
 	if _fb devices 2>/dev/null | grep -qi fastboot; then
 		TRANSPORT=lk2nd-fastboot; return 0
 	fi
@@ -58,7 +79,7 @@ transport_detect() {
 t_run() {
 	case "$TRANSPORT" in
 		twrp) _adb shell "$1" ;;
-		pmos) printf '%s\n' "$1" | _ssh "sudo sh -s" ;;
+		pmos) _pmos_root "$1" ;;
 		*) echo "Error: $TRANSPORT cannot run commands." >&2; return 1 ;;
 	esac
 }
@@ -77,7 +98,7 @@ t_push() {
 t_readback() {
 	case "$TRANSPORT" in
 		twrp) _adb exec-out "$1" ;;
-		pmos) printf '%s\n' "$1" | _ssh "sudo sh -s" ;;
+		pmos) _pmos_root "$1" ;;
 		*) echo "Error: $TRANSPORT cannot read partitions." >&2; return 1 ;;
 	esac
 }
@@ -98,6 +119,21 @@ t_resolve() {
 	echo "$node"
 }
 
+# The partition the running system booted from. Its rootfs sits in a nested
+# GPT inside that partition, reached through a loop device, so the mount source
+# is a loop node and has to be traced back to its backing store.
+_pmos_root_partition() {
+	t_run 'root=$(findmnt -no SOURCE /)
+	       case "$root" in
+	         /dev/loop*)
+	           base=$(lsblk -no PKNAME "$root" 2>/dev/null)
+	           [ -n "$base" ] || base=${root#/dev/}
+	           back=$(cat "/sys/class/block/$base/loop/backing_file" 2>/dev/null)
+	           [ -n "$back" ] && root=$back ;;
+	       esac
+	       echo "$root"' | tr -d '\r' | head -1
+}
+
 # Refuse writes the mode cannot make safely.
 t_check_writable() {
 	local label="$1"
@@ -106,9 +142,9 @@ t_check_writable() {
 		pmos)
 			local node root
 			node=$(t_resolve "$label") || return 1
-			root=$(t_run "findmnt -no SOURCE /" | tr -d '\r')
-			if [[ -n "$root" && "$root" == "$node"* ]]; then
-				echo "Error: '$label' holds the running rootfs; write it from twrp." >&2
+			root=$(_pmos_root_partition)
+			if [[ -n "$root" && "$root" == "$node" ]]; then
+				echo "Error: '$label' ($node) holds the running rootfs; write it from twrp." >&2
 				return 1
 			fi
 			return 0 ;;
