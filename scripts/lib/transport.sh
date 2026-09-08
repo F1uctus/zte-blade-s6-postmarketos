@@ -58,7 +58,7 @@ transport_detect() {
 t_run() {
 	case "$TRANSPORT" in
 		twrp) _adb shell "$1" ;;
-		pmos) _ssh "sudo sh -c '$1'" ;;
+		pmos) printf '%s\n' "$1" | _ssh "sudo sh -s" ;;
 		*) echo "Error: $TRANSPORT cannot run commands." >&2; return 1 ;;
 	esac
 }
@@ -77,7 +77,7 @@ t_push() {
 t_readback() {
 	case "$TRANSPORT" in
 		twrp) _adb exec-out "$1" ;;
-		pmos) _ssh "sudo sh -c '$1'" ;;
+		pmos) printf '%s\n' "$1" | _ssh "sudo sh -s" ;;
 		*) echo "Error: $TRANSPORT cannot read partitions." >&2; return 1 ;;
 	esac
 }
@@ -85,12 +85,14 @@ t_readback() {
 # Block device node for a partition label. Unresolvable is an error.
 t_resolve() {
 	local label="$1" node
-	node=$(t_run "readlink -f /dev/block/by-name/$label 2>/dev/null; \
-	              readlink -f /dev/block/platform/*/by-name/$label 2>/dev/null; \
-	              readlink -f /dev/disk/by-partlabel/$label 2>/dev/null" \
-	       | tr -d '\r' | grep -v 'No such file' | head -1)
-	if [[ -z "$node" ]]; then
-		echo "Error: partition '$label' does not resolve in mode $TRANSPORT." >&2
+	node=$(t_run "for p in /dev/block/by-name/$label \
+	                       /dev/block/platform/*/by-name/$label \
+	                       /dev/disk/by-partlabel/$label; do
+	                  [ -b \"\$p\" ] && readlink -f \"\$p\" && break
+	              done" | tr -d '\r' | head -1)
+	if [[ -z "$node" ]] || ! t_run "[ -b \"$node\" ]"; then
+		echo "Error: '$label' is not a block device in mode $TRANSPORT." >&2
+		echo "  Recovery exposes /dev/block/...; a running system exposes /dev/... ." >&2
 		return 1
 	fi
 	echo "$node"
